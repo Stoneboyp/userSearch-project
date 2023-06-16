@@ -1,0 +1,8 @@
+body {
+    height: 900px;
+}
+#root {
+    margin: 0 auto;
+    padding: 2rem;
+    text-align: center;
+}
