@@ -14,6 +14,7 @@ const SearchForm = () => {
     });
 
     const handleSubmit = (values: any) => {
+        setData(({}))
         setIsLoading(true)
         axios
             .get("/validation", { params: values })

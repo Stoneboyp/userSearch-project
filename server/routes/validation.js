@@ -1,81 +1,74 @@
 import express from 'express';
-import { readFile } from 'fs';
+import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
 const router = express.Router();
-
-// Получаем путь к текущему файлу
 const __filename = fileURLToPath(import.meta.url);
-// Извлекаем директорию из пути
 const __dirname = path.dirname(__filename);
+let currentRequest = null;
 
-let currentRequest = null; // Переменная для отслеживания текущего запроса
-
-router.get("/", (req, res) => {
+router.get('/', async (req, res) => {
   if (currentRequest) {
-    // Если уже есть текущий запрос, отменяем его
-    currentRequest.cancel();
+    currentRequest.abort();
   }
 
   const filePath = path.join(__dirname, '../users.json');
 
-  const requestPromise = new Promise((resolve, reject) => {
-    setTimeout(() => {
-      readFile(filePath, "utf-8", (err, data) => {
-        if (err) {
-          console.log(err);
-          reject(err);
-        }
-        try {
-          const users = JSON.parse(data);
-          const { email, number } = req.query;
+  const controller = new AbortController();
+  const { signal } = controller;
 
-          const numberRegex = /^\d{2}-\d{2}-\d{2}$/;
-          const isValidNumber = numberRegex.test(number);
+  currentRequest = controller;
 
-          if (!isValidNumber) {
-            resolve({ error: "Invalid number format" });
-            return;
-          }
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 5000)); // Имитация задержки в 5 секунд
 
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          const isValidEmail = emailRegex.test(email);
+    const data = await readFile(filePath, 'utf-8', { signal });
 
-          if (!isValidEmail) {
-            resolve({ error: "Invalid email format" });
-            return;
-          }
+    if (signal.aborted) {
+      res.json({ message: 'Cancelled previous request, still hello from backend' });
+      return;
+    }
 
-          const formattedNumber = number.split("-").join("");
+    const users = JSON.parse(data);
+    const { email, number } = req.query;
 
-          const findUsers = users.find(
-            (user) => user.email === email && user.number === formattedNumber
-          );
+    const numberRegex = /^\d{2}-\d{2}-\d{2}$/;
+    const isValidNumber = numberRegex.test(number);
 
-          if (findUsers) {
-            resolve({ message: "User data valid" });
-          } else {
-            resolve({ error: "User invalid" });
-          }
-        } catch (error) {
-          reject(error);
-        }
-      });
-    }, 5000); // Задержка в 5 секунд
-  });
+    if (!isValidNumber) {
+      res.json({ error: 'Invalid number format' });
+      return;
+    }
 
-  currentRequest = requestPromise; // Устанавливаем текущий запрос
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const isValidEmail = emailRegex.test(email);
 
-  requestPromise
-    .then((data) => {
-      currentRequest = null; // Сбрасываем текущий запрос после его завершения
-      res.json(data);
-    })
-    .catch((error) => {
-      currentRequest = null; // Сбрасываем текущий запрос после его завершения
-      res.status(500).json({ error: "Internal Server Error" });
-    });
+    if (!isValidEmail) {
+      res.json({ error: 'Invalid email format' });
+      return;
+    }
+
+    const formattedNumber = number.split('-').join('');
+
+    const findUsers = users.find(
+      (user) => user.email === email && user.number === formattedNumber
+    );
+
+    if (findUsers) {
+      res.json({ message: 'User data valid' });
+    } else {
+      res.json({ error: 'User invalid' });
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      res.json({ message: 'Cancelled previous request, still hello from backend' });
+    } else {
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  } finally {
+    currentRequest = null;
+  }
 });
 
 export default router;
