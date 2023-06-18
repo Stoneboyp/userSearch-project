@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react"
+import React, { useContext, useRef, useState } from "react"
 import { Button, Container, CircularProgress } from "@mui/material";
 import { Form, Formik, Field, ErrorMessage } from "formik";
 import axios from "axios";
@@ -8,6 +8,7 @@ import { FormContext } from "../context/context";
 
 const SearchForm = () => {
     const { setData, setIsLoading } = useContext(FormContext)
+    const controllerRef = useRef<AbortController | null>(null)
     const validationSchema = Yup.object().shape({
         email: Yup.string().email("Invalid email").required("Email is required"),
         number: Yup.string().matches(/\d{2}-\d{2}-\d{2}/, "Invalid number format"),
@@ -16,11 +17,18 @@ const SearchForm = () => {
     const handleSubmit = (values: any) => {
         setData(({}))
         setIsLoading(true)
+
+        if (controllerRef.current) {
+            controllerRef.current.abort(); // Отменить предыдущий запрос, если он существует
+        }
+        controllerRef.current = new AbortController(); // Создать новый экземпляр AbortController
+
         axios
-            .get("/validation", { params: values })
+            .get("/validation", { params: values, signal: controllerRef.current.signal })
             .then((response: { data: any; }) => {
                 setData(response.data)
                 setIsLoading(false)
+
             })
             .catch((error: any) => {
                 console.error(error);

@@ -6,29 +6,17 @@ import path from 'path';
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-let currentRequest = null;
 
 router.get('/', async (req, res) => {
-  if (currentRequest) {
-    currentRequest.abort();
-  }
+
 
   const filePath = path.join(__dirname, '../users.json');
 
-  const controller = new AbortController();
-  const { signal } = controller;
-
-  currentRequest = controller;
 
   try {
     await new Promise((resolve) => setTimeout(resolve, 5000)); // Имитация задержки в 5 секунд
 
-    const data = await readFile(filePath, 'utf-8', { signal });
-
-    if (signal.aborted) {
-      res.json({ message: 'Cancelled previous request, still hello from backend' });
-      return;
-    }
+    const data = await readFile(filePath, 'utf-8');
 
     const users = JSON.parse(data);
     const { email, number } = req.query;
@@ -61,13 +49,7 @@ router.get('/', async (req, res) => {
       res.json({ error: 'User invalid' });
     }
   } catch (error) {
-    if (error.name === 'AbortError') {
-      res.json({ message: 'Cancelled previous request, still hello from backend' });
-    } else {
-      res.status(500).json({ error: 'Internal Server Error' });
-    }
-  } finally {
-    currentRequest = null;
+    console.log(error);
   }
 });
 
